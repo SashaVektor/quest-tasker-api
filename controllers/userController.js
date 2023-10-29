@@ -1,101 +1,93 @@
+import expressAsyncHandler from "express-async-handler";
+import bcrypt from "bcrypt";
 import User from "../models/User.js";
-import expressAsyncHandler from "express-async-handler"
-import bcrypt from "bcrypt"
 import { generateToken } from "../utils.js";
 
 export const signIn = expressAsyncHandler(async (req, res) => {
-    try {
-        const user = await User.findOne({ email: req.body.email })
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-        if (user) {
-            if (bcrypt.compareSync(req.body.password, user.password)) {
-                res.send({
-                    _id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    phone: user.phone,
-                    status: user.status,
-                    profession: user.profession,
-                    description: user.description,
-                    token: generateToken(user)
-                })
-                return;
-            }
-        }
-        res.status(401).send({ message: "Invalid email or password" })
-    } catch (err) {
-        res.status(400).send({ message: err.message })
+    if (user && bcrypt.compareSync(password, user.password)) {
+      const userData = extractUserData(user);
+      res.send(userData);
+    } else {
+      res.status(401).send({ message: "Invalid email or password" });
     }
-})
+  } catch (err) {
+    res.status(400).send({ message: err.message });
+  }
+});
 
 export const signUp = expressAsyncHandler(async (req, res) => {
-    try {
-        const person = await User.findOne({ email: req.body.email })
+  try {
+    const { name, email, phone, password } = req.body;
+    const existingUser = await User.findOne({ email });
 
-        if (person) {
-            throw new Error("User already exist")
-        }
-
-        const saltRounds = 10;
-        const salt = bcrypt.genSaltSync(saltRounds);
-
-        const newUser = new User({
-            name: req.body.name,
-            email: req.body.email,
-            phone: req.body.phone,
-            password: bcrypt.hashSync(req.body.password, salt),
-        })
-
-        const user = await newUser.save();
-
-        res.send({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            status: user.status,
-            profession: user.profession,
-            description: user.description,
-            token: generateToken(user)
-        })
-    } catch (err) {
-        res.status(401).send({ message: err.message })
+    if (existingUser) {
+      throw new Error("User already exists");
     }
-})
+
+    const saltRounds = 2;
+    const salt = bcrypt.genSaltSync(saltRounds);
+
+    const newUser = new User({
+      name,
+      email,
+      phone,
+      password: bcrypt.hashSync(password, salt),
+    });
+
+    const user = await newUser.save();
+    const userData = extractUserData(user);
+
+    res.send(userData);
+  } catch (err) {
+    res.status(401).send({ message: err.message });
+  }
+});
 
 export const editUserInfo = expressAsyncHandler(async (req, res) => {
-    try {
-        const { id } = req.params
-        const user = await User.findOne({ _id: id })
-        if (user) {
-            user.name = req.body.name || user.name;
-            user.phone = req.body.phone || user.phone;
-            user.description = req.body.description || user.description;
-            user.status = req.body.status || user.status
-            user.profession = req.body.profession || user.profession
+  try {
+    const { id } = req.params;
+    const user = await User.findOne({ _id: id });
 
-            const updatedUser = await user.save();
-            
-            if(!updatedUser) {
-                res.status(403).send({message: "Updated not successfully"})
-                return
-            }
+    if (user) {
+      updateUserData(user, req.body);
+      const updatedUser = await user.save();
 
-            res.send({
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                email: updatedUser.email,
-                isAdmin: updatedUser.isAdmin,
-                phone: updatedUser.phone,
-                description: updatedUser.description,
-                status: updatedUser.status,
-                profession: updatedUser.profession,
-                token: generateToken(updatedUser)
-            })
-        } else {
-            res.status(404).send({ message: "User not found" })
-        }
-    } catch (err) {
-        res.status(400).send(err)
+      if (!updatedUser) {
+        res.status(403).send({ message: "Update not successful" });
+      } else {
+        const userData = extractUserData(updatedUser);
+        res.send(userData);
+      }
+    } else {
+      res.status(404).send({ message: "User not found" });
     }
-})
+  } catch (err) {
+    res.status(400).send(err);
+  }
+});
+
+const extractUserData = (user) => {
+  const { _id, name, email, phone, status, profession, description } = user;
+  return {
+    _id,
+    name,
+    email,
+    phone,
+    status,
+    profession,
+    description,
+    token: generateToken(user),
+  };
+}
+
+const updateUserData = (user, data) => {
+  user.name = data.name || user.name;
+  user.phone = data.phone || user.phone;
+  user.description = data.description || user.description;
+  user.status = data.status || user.status;
+  user.profession = data.profession || user.profession;
+}
