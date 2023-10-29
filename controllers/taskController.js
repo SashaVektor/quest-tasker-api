@@ -6,110 +6,124 @@ export const getUserTasks = expressAsyncHandler(async (req, res) => {
         const { userId } = req.query;
 
         if (!userId) {
-            return res.status(404).send({ message: "userId Not Found" });
+            res.status(404).send({ message: "userId Not Found" })
+            return
         }
 
-        const tasks = await Task.find({ userId }).sort((a, b) => b.createdAt - a.createdAt);
+        const tasks = (await Task.find({ userId })).sort((a, b) => b.createdAt - a.createdAt);
 
-        if (!tasks || tasks.length === 0) {
-            return res.status(404).send({ message: "This user has no tasks" });
+        if(!tasks) {
+            res.status(404).send({ message: "This user have not tasks" })
+            return
         }
 
-        res.status(200).send(tasks);
+        res.status(200).send(tasks)
     } catch (err) {
-        console.error(err);
-        res.status(500).send({ message: "Internal Server Error" });
+        console.log(err);
+        res.status(500).send({ message: "Internal Server Error" })
     }
-});
+})
 
 export const createTaskInFolder = expressAsyncHandler(async (req, res) => {
     try {
-        const { userId } = req.query;
-        const taskData = req.body;
+        const task = req.body;
 
-        if (!userId || !taskData) {
-            return res.status(404).send({ message: "userId or Task Data not Found" });
+        const { userId } = req.query;
+
+        if (!userId) {
+            res.status(404).send({ message: "userId Not Found" })
+            return
+        }
+
+        if (!task) {
+            res.status(404).send({ message: "Task Data not Found" })
+            return
         }
 
         const newTask = new Task({
-            ...taskData,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            subTasks: task.subTasks || [],
             userId,
-        });
+            images: task.images || [],
+            dueDate: task.dueDate,
+            folderId: task.folderId
+        })
 
-        const savedTask = await newTask.save();
+        const file = await newTask.save();
 
-        if (!savedTask) {
-            return res.status(403).send({ message: "Task creation failed" });
+        if (!file) {
+            res.status(403).send({ message: "Task creation failed" })
+            return
         }
 
-        res.status(200).send({ message: "Task was created successfully" });
+        res.status(200).send({ message: "Task was created sucessfully" })
     } catch (err) {
-        console.error(err);
-        res.status(500).send({ message: "Internal Server Error" });
+        console.log(err);
+        res.status(500).send({ message: "Internal Server Error" })
     }
-});
+})
 
 export const deleteTaskInFolder = expressAsyncHandler(async (req, res) => {
     try {
         const { id } = req.params;
         const { userId } = req.query;
 
-        const task = await Task.findById(id);
+        const task = await Task.findById({ _id: id })
 
         if (!task) {
-            return res.status(404).send({ message: "Task not found" });
+            res.status(404).send({ message: "Task not found" })
+            return
         }
 
         if (task.userId !== userId) {
-            return res.status(403).send({ message: "This is not your task" });
+            res.status(403).send({ message: "This is not your task" })
+            return
         }
 
         await task.deleteOne();
 
-        res.send({ message: "Task deleted successfully" });
+        res.send({ message: "Task deleted successfully" })
     } catch (err) {
-        console.error(err);
-        res.status(500).send({ message: "Internal Server Error" });
+        console.log(err);
+        res.status(500).send({ message: "Internal Server Error" })
     }
-});
+})
 
 export const updateTask = expressAsyncHandler(async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params
+        const task = await Task.findOne({ _id: id })
+
         const { userId } = req.query;
 
-        const task = await Task.findById(id);
-
-        if (!task) {
-            return res.status(404).send({ message: "Task not found" });
-        }
-
         if (task.userId !== userId) {
-            return res.status(403).send({ message: "This is not your task" });
+            res.status(403).send({ message: "This is not your task" })
+            return
         }
 
-        updateTaskData(task, req.body);
+        if (task) {
+            task.title = req.body.title || task.title;
+            task.description = req.body.description || task.description;
+            task.priority = req.body.priority || task.priority
+            task.status = req.body.status || task.status
+            task.dueDate = req.body.dueDate || task.dueDate
+            task.images = req.body.images || task.images
+            task.subTasks = req.body.subTasks || task.subTasks
 
-        const updatedTask = await task.save();
+            const updatedTask = await task.save();
+            if (!updatedTask) {
+                res.status(403).send({ message: "Updated not successfully" })
+                return
+            }
 
-        if (!updatedTask) {
-            return res.status(403).send({ message: "Updated not successful" });
+            res.status(200).send({ message: "Task updated successfully" })
+        } else {
+            res.status(404).send({ message: "Task not found" })
         }
-
-        res.status(200).send({ message: "Task updated successfully" });
     } catch (err) {
-        console.error(err);
-        res.status(400).send(err);
+        res.status(400).send(err)
     }
-});
-
-
-const updateTaskData = (task, data) => {
-    task.title = data.title || task.title;
-    task.description = data.description || task.description;
-    task.priority = data.priority || task.priority;
-    task.status = data.status || task.status;
-    task.dueDate = data.dueDate || task.dueDate;
-    task.images = data.images || task.images;
-    task.subTasks = data.subTasks || task.subTasks;
-}
+})
