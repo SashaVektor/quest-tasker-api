@@ -39,8 +39,8 @@ uploadRouter.post('/', isAuth, upload.single('file'), async (req, res) => {
 })
 
 AWS.config.update({
-    accessKeyId: "AKIAX3M5CNOVCFCEYYTT",
-    secretAccessKey: "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",
+    accessKeyId: process.env.ACCESS_KEY,
+    secretAccessKey: process.env.SECRET,
     region: "eu-central-1", 
 });
 
@@ -49,7 +49,7 @@ const s3 = new AWS.S3();
 const uploadToS3 = (req) => {
     return new Promise((resolve, reject) => {
         const params = {
-            Bucket: "task-mingle",
+            Bucket: process.env.BUCKET_NAME,
             Key: `${req.file.originalname}`,
             Body: req.file.buffer,
         };
